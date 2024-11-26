@@ -306,3 +306,20 @@
     )
   )
 )
+
+(define-map RecoveryGuardians
+  principal
+  (list 3 principal)
+)
+
+(define-public (add-recovery-guardians
+  (guardians (list 3 principal))
+)
+  (begin
+    (map-set RecoveryGuardians 
+      tx-sender 
+      guardians
+    )
+    (ok true)
+  )
+)
