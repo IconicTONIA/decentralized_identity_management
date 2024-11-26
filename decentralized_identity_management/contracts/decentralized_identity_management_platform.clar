@@ -10,6 +10,8 @@
 (define-constant ERR-SERVICE-ACCESS-DENIED (err u4))
 (define-constant ERR-IDENTITY-EXISTS (err u5))
 
+
+
 ;; Identity Struct
 (define-map Identities 
   principal 
@@ -115,5 +117,94 @@
       )
     ;; If no identity found, return invalid identity error
     (err ERR-INVALID-IDENTITY)
+  )
+)
+
+;; Request Service Access
+(define-public (request-service-access
+  (service-did principal)
+  (requested-attributes (list 10 (string-ascii 50)))
+)
+  (match (map-get? Identities tx-sender)
+    current-identity
+      (begin
+        ;; Create verification request
+        (map-set VerificationRequests
+          {
+            requester: service-did,
+            identity: tx-sender
+          }
+          {
+            requested-attributes: requested-attributes,
+            status: "PENDING",
+            created-at: u0  ;; Use a placeholder timestamp
+          }
+        )
+        
+        (ok true)
+      )
+    ;; If no identity found, return invalid identity error
+    (err ERR-INVALID-IDENTITY)
+  )
+)
+
+;; Approve Service Access
+(define-public (approve-service-access
+  (service-did principal)
+  (allowed-attributes (list 10 (string-ascii 50)))
+  (expiration uint)
+)
+  (let 
+    (
+      ;; Attempt to get the verification request
+      (verification-request 
+        (map-get? VerificationRequests 
+          {
+            requester: service-did,
+            identity: tx-sender
+          }
+        )
+      )
+    )
+    ;; Check if verification request exists
+    (match verification-request
+      request
+        (begin
+          ;; Verify the request is still pending
+          (if (not (is-eq (get status request) "PENDING"))
+            (err u2)  ;; Direct error code instead of unresolved constant
+            (begin
+              ;; Store service access permissions
+              (map-set ServiceAccess
+                {
+                  identity: tx-sender,
+                  service-did: service-did
+                }
+                {
+                  allowed-attributes: allowed-attributes,
+                  expiration: expiration
+                }
+              )
+              
+              ;; Update verification request status
+              (map-set VerificationRequests
+                {
+                  requester: service-did,
+                  identity: tx-sender
+                }
+                {
+                  requested-attributes: allowed-attributes,
+                  status: "APPROVED",
+                  created-at: (get created-at request)
+                }
+              )
+              
+              (ok true)
+            )
+          )
+        )
+      ;; If no verification request found, return error
+      (err u1)  ;; Direct error code
+    )
   )
 )
